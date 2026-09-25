@@ -8,7 +8,6 @@ import { authRouter } from './routes/auth.js';
 import { adminRouter } from './routes/admin.js';
 import { usersRouter } from './routes/users.js';
 import { tasksRouter } from './routes/tasks.js';
-import { seedAdminIfEmpty } from './lib/users.js';
 
 export function createApp() {
   const app = express();
@@ -46,9 +45,6 @@ export function createApp() {
   app.use('/api/admin', adminRouter);
   app.use('/api/users', usersRouter);
   app.use('/api/tasks', tasksRouter);
-
-  // Ensure there is always a way in (seeds the env admin as a real account).
-  seedAdminIfEmpty().catch((err) => console.error('[app] admin seed failed:', err.message));
 
   app.use((req, res) => res.status(404).json({ ok: false, error: 'not_found' }));
 

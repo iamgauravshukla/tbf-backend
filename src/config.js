@@ -7,6 +7,18 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const list = (v) => (v || '').split(',').map((s) => s.trim()).filter(Boolean);
 
+// Only accept a real connection string. An unresolved Railway reference
+// ("${{Postgres.DATABASE_URL}}") or a stray value must not put us into DB mode.
+function pgUrl(v) {
+  const s = (v || '').trim();
+  if (!s) return '';
+  if (!/^postgres(ql)?:\/\//i.test(s)) {
+    console.warn('[config] DATABASE_URL is not a postgres:// URL (unresolved template or placeholder?) — using the JSON store.');
+    return '';
+  }
+  return s;
+}
+
 const origins = list(process.env.ALLOWED_ORIGINS);
 
 let jwtSecret = process.env.JWT_SECRET || '';
@@ -27,11 +39,19 @@ export const config = {
   siteUrl: process.env.SITE_URL || 'http://localhost:4321',
   thankYouPath: process.env.THANK_YOU_PATH || '/thank-you/',
 
-  // Lead records live here (JSON). Kept out of git. Swap the store for Postgres
-  // (Railway) later without touching the routes.
+  // Lead records live here (JSON) when no database is configured. Kept out of
+  // git. Used only in the fallback file store.
   dataDir: process.env.DATA_DIR
     ? path.resolve(process.env.DATA_DIR)
     : path.resolve(__dirname, '..', 'data'),
+
+  // When set to a real postgres:// URL, all storage uses Postgres instead of the
+  // JSON files. Railway injects it when you reference the Postgres service. An
+  // unresolved template like "${{Postgres.DATABASE_URL}}" (common in a local
+  // .env) or any non-postgres value is ignored so the app still boots on the
+  // JSON store instead of crashing. PGSSL forces TLS on/off; else inferred.
+  databaseUrl: pgUrl(process.env.DATABASE_URL),
+  pgSsl: process.env.PGSSL || '',
 
   // Optional: forward each new lead to a webhook (Slack / Zapier / CRM inbox).
   webhookUrl: process.env.WEBHOOK_URL || '',
