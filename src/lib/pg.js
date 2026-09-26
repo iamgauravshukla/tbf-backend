@@ -97,6 +97,27 @@ export async function ensureSchema() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS posts (
+      id UUID PRIMARY KEY,
+      slug TEXT UNIQUE NOT NULL,
+      title TEXT NOT NULL,
+      excerpt TEXT NOT NULL DEFAULT '',
+      content TEXT NOT NULL DEFAULT '',
+      cover_image TEXT,
+      seo_title TEXT,
+      meta_description TEXT,
+      related JSONB NOT NULL DEFAULT '[]',
+      status TEXT NOT NULL DEFAULT 'draft',
+      author_id UUID,
+      author_name TEXT,
+      author_role TEXT,
+      published_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await query('CREATE INDEX IF NOT EXISTS idx_posts_status ON posts(status, published_at DESC);');
   await query('CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);');
   await query('CREATE INDEX IF NOT EXISTS idx_leads_assigned ON leads(assigned_to);');
   await query('CREATE INDEX IF NOT EXISTS idx_leads_received ON leads(received_at DESC);');

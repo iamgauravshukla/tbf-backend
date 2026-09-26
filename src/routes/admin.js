@@ -3,6 +3,7 @@ import { requireAuth } from '../lib/auth.js';
 import { listLeads, getLead, updateLead, stats, visibleTo, STATUSES } from '../lib/store.js';
 import { logActivity, listActivity } from '../lib/activity.js';
 import { listAgents, findById } from '../lib/users.js';
+import { computeAnalytics } from '../lib/analytics.js';
 
 export const adminRouter = Router();
 
@@ -26,6 +27,15 @@ adminRouter.get('/stats', async (req, res, next) => {
 adminRouter.get('/agents', async (req, res, next) => {
   try {
     res.json({ ok: true, agents: await listAgents() });
+  } catch (err) { next(err); }
+});
+
+// Aggregated analytics (funnel, over-time, by source/treatment/owner), scoped to
+// the viewer. Optional ?from=YYYY-MM-DD&to=YYYY-MM-DD (defaults to last 30 days).
+adminRouter.get('/analytics', async (req, res, next) => {
+  try {
+    const data = await computeAnalytics({ viewer: req.user, from: req.query.from, to: req.query.to });
+    res.json({ ok: true, ...data });
   } catch (err) { next(err); }
 });
 

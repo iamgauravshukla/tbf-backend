@@ -8,6 +8,7 @@ import { authRouter } from './routes/auth.js';
 import { adminRouter } from './routes/admin.js';
 import { usersRouter } from './routes/users.js';
 import { tasksRouter } from './routes/tasks.js';
+import { postsPublicRouter, blogAdminRouter } from './routes/blog.js';
 
 export function createApp() {
   const app = express();
@@ -39,6 +40,11 @@ export function createApp() {
     message: { ok: false, error: 'too_many_requests' },
   });
   app.use('/api/leads', limiter, leadsRouter);
+
+  // Blog: public reads for the website, authenticated writes for the editor.
+  // The admin mount must precede /api/admin so its role gate applies.
+  app.use('/api/posts', postsPublicRouter);
+  app.use('/api/admin/posts', blogAdminRouter);
 
   // Dashboard: login + authenticated lead management.
   app.use('/api/auth', authRouter);
