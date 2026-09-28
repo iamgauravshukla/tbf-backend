@@ -9,6 +9,7 @@ import { adminRouter } from './routes/admin.js';
 import { usersRouter } from './routes/users.js';
 import { tasksRouter } from './routes/tasks.js';
 import { postsPublicRouter, blogAdminRouter } from './routes/blog.js';
+import { uploadsRouter, uploadsDir } from './routes/uploads.js';
 
 export function createApp() {
   const app = express();
@@ -42,9 +43,20 @@ export function createApp() {
   app.use('/api/leads', limiter, leadsRouter);
 
   // Blog: public reads for the website, authenticated writes for the editor.
-  // The admin mount must precede /api/admin so its role gate applies.
+  // The admin mounts must precede /api/admin so their role gates apply.
   app.use('/api/posts', postsPublicRouter);
   app.use('/api/admin/posts', blogAdminRouter);
+  app.use('/api/admin/uploads', uploadsRouter);
+
+  // Images uploaded through the editor. Names carry a random suffix, so long
+  // immutable caching is safe; the CORP header overrides helmet's same-origin
+  // default so the website (a different origin) can embed them.
+  app.use('/uploads', express.static(uploadsDir, {
+    index: false,
+    maxAge: '365d',
+    immutable: true,
+    setHeaders: (res) => res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin'),
+  }));
 
   // Dashboard: login + authenticated lead management.
   app.use('/api/auth', authRouter);
