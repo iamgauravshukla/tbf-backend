@@ -41,6 +41,25 @@ export function validateLead(body = {}) {
 // source 'booking' so it flows into the same admin pipeline.
 const MIN_AGE = 25;
 
+// Marketing attribution (utm_* / click ids) captured by the browser on landing.
+// Folded into the booking's `message` as a compact, self-describing line so it
+// shows in the reception email and the dashboard, and is searchable by campaign
+// — all without a schema change. Unknown keys and overlong values are dropped.
+const ATTR_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'utm_id', 'fbclid', 'gclid'];
+function attributionLine(raw) {
+  if (!raw || typeof raw !== 'object') return '';
+  const parts = [];
+  for (const k of ATTR_KEYS) {
+    // Strip angle brackets, quotes, backticks and control chars (defence in
+    // depth against stored-XSS), collapse whitespace, then cap length.
+    const v = typeof raw[k] === 'string'
+      ? raw[k].replace(/[<>"'`]/g, '').replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 150)
+      : '';
+    if (v) parts.push(`${k.replace(/^utm_/, '')}=${v}`);
+  }
+  return parts.length ? `Campaign — ${parts.join(' · ')}` : '';
+}
+
 export function validateBooking(body = {}) {
   const name = str(body.name);
   const email = str(body.email);
@@ -82,7 +101,7 @@ export function validateBooking(body = {}) {
       age: Number.isInteger(ageNum) ? ageNum : null,
       appointmentAt: apptValid ? apptDate.toISOString() : null,
       preMedical,
-      message: '',
+      message: attributionLine(body.attribution),
       source: 'booking',
       consent,
     },
