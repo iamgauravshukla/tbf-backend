@@ -115,4 +115,22 @@ export const config = {
   // Shown in the confirmation email so clients can reach the clinic.
   clinicName: process.env.CLINIC_NAME || 'The Better Face',
   clinicPhone: process.env.CLINIC_PHONE || '',
+
+  // ── Meta Conversions API (server-side Schedule for completed bookings) ──
+  // OFF unless META_CAPI_ENABLED=true AND both ids are set. The server event
+  // carries event_id = the booking id, matching the browser Pixel's eventID, so
+  // Meta deduplicates the pair into ONE conversion. Enable ONLY after any other
+  // server-side Schedule source (e.g. the external CRM's own Meta integration)
+  // is removed — otherwise bookings are double-counted. For safe testing set
+  // META_TEST_EVENT_CODE (from Events Manager → Test events); events then show
+  // only in Test events, never in live reporting.
+  metaCapi: {
+    enabled: process.env.META_CAPI_ENABLED === 'true',
+    pixelId: (process.env.META_PIXEL_ID || '').trim(),
+    token: (process.env.META_CAPI_TOKEN || '').trim(),
+    apiVersion: (process.env.META_GRAPH_VERSION || 'v21.0').trim(),
+    value: Number(process.env.META_EVENT_VALUE || 10),      // nominal PHP value
+    currency: (process.env.META_EVENT_CURRENCY || 'PHP').trim(),
+    testEventCode: (process.env.META_TEST_EVENT_CODE || '').trim(),
+  },
 };

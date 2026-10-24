@@ -1,9 +1,11 @@
 import { Router } from 'express';
+import { config } from '../config.js';
 import { validateBooking } from '../lib/validate.js';
 import { slotForInstant } from '../lib/slots.js';
 import { createLead } from '../lib/store.js';
 import { forwardLead, forwardLeadToCrm } from '../lib/notify.js';
 import { sendBookingConfirmation, sendStaffNotification } from '../lib/email.js';
+import { sendScheduleEvent } from '../lib/metaCapi.js';
 import { logActivity } from '../lib/activity.js';
 
 export const bookingsRouter = Router();
@@ -51,6 +53,16 @@ bookingsRouter.post('/', async (req, res, next) => {
     forwardLeadToCrm(record);                   // mirror to the external CRM intake
     sendBookingConfirmation(record);            // email the customer (if SMTP configured)
     sendStaffNotification(record, 'booking');   // alert reception / clinic inbox
+    // Meta Conversions API — same event_id as the browser Pixel for dedup. Only
+    // sends when META_CAPI is enabled + configured (off by default). The browser
+    // supplies fbp/fbc so the server event can be matched to the ad click.
+    sendScheduleEvent(record, {
+      fbp: typeof body.fbp === 'string' ? body.fbp : '',
+      fbc: typeof body.fbc === 'string' ? body.fbc : '',
+      clientIp: req.ip,
+      userAgent: req.get('user-agent') || '',
+      eventSourceUrl: `${(config.siteUrl || '').replace(/\/+$/, '')}/book/`,
+    });
 
     res.status(201).json({ ok: true, id: record.id });
   } catch (err) {
