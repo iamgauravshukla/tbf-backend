@@ -4,6 +4,7 @@ import fsp from 'node:fs/promises';
 import express, { Router } from 'express';
 import { config } from '../config.js';
 import { requireAuth, requireRole } from '../lib/auth.js';
+import { saveMedia, listMedia, mediaInDb, EXT_MIME } from '../lib/media.js';
 
 // Uploaded blog imagery lives beside the JSON store so one persistent disk
 // (a volume mounted at DATA_DIR) covers both. Served back at /uploads/<name>.
@@ -41,8 +42,13 @@ uploadsRouter.post('/', express.raw({ type: 'image/*', limit: '8mb' }), async (r
     const ext = sniff(req.body);
     if (!ext) return res.status(415).json({ ok: false, error: 'unsupported_type' });
     const name = `${safeName(req.query.filename)}-${crypto.randomBytes(4).toString('hex')}.${ext}`;
-    await fsp.mkdir(uploadsDir, { recursive: true });
-    await fsp.writeFile(path.join(uploadsDir, name), req.body);
+    // Store in Postgres (survives redeploys); fall back to the filesystem in
+    // local dev when no database is configured.
+    const stored = await saveMedia(name, EXT_MIME[ext] || 'application/octet-stream', req.body);
+    if (!stored) {
+      await fsp.mkdir(uploadsDir, { recursive: true });
+      await fsp.writeFile(path.join(uploadsDir, name), req.body);
+    }
     res.status(201).json({ ok: true, filename: name, url: publicUrl(req, name) });
   } catch (err) { next(err); }
 });
@@ -50,6 +56,12 @@ uploadsRouter.post('/', express.raw({ type: 'image/*', limit: '8mb' }), async (r
 // Media list for the editor's cover-image picker, newest first.
 uploadsRouter.get('/', async (req, res, next) => {
   try {
+    // From the database when configured …
+    if (mediaInDb) {
+      const rows = await listMedia(200);
+      return res.json({ ok: true, files: rows.map((r) => ({ ...r, url: publicUrl(req, r.filename) })) });
+    }
+    // … otherwise from the filesystem (local dev).
     let names = [];
     try { names = await fsp.readdir(uploadsDir); } catch { /* nothing uploaded yet */ }
     const files = await Promise.all(names

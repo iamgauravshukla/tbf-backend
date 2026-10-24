@@ -33,6 +33,8 @@ const rowToLead = (r) => ({
   message: r.message,
   source: r.source,
   consent: r.consent,
+  age: r.age,
+  preMedical: r.pre_medical || '',
   ip: r.ip,
   userAgent: r.user_agent,
 });
@@ -59,11 +61,12 @@ export async function createLead(data, meta = {}) {
   if (pgEnabled) {
     await query(
       `INSERT INTO leads (id, received_at, updated_at, status, assigned_to, appointment_at, notes,
-        name, email, phone, treatment, message, source, consent, ip, user_agent)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+        name, email, phone, treatment, message, source, consent, age, pre_medical, ip, user_agent)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
       [record.id, record.receivedAt, record.updatedAt, record.status, record.assignedTo, record.appointmentAt,
         record.notes, record.name, record.email ?? null, record.phone ?? null, record.treatment ?? null,
-        record.message ?? null, record.source ?? null, record.consent ?? false, record.ip ?? null, record.userAgent ?? null],
+        record.message ?? null, record.source ?? null, record.consent ?? false,
+        record.age ?? null, record.preMedical ?? null, record.ip ?? null, record.userAgent ?? null],
     );
     return record;
   }
@@ -113,6 +116,51 @@ export async function updateLead(id, patch = {}) {
   lead.updatedAt = new Date().toISOString();
   await persist(LEADS);
   return lead;
+}
+
+// Permanently delete leads/bookings and their history (activity + tasks).
+// Admin-only action (enforced in the route). Returns the number removed.
+export async function deleteLeads(ids = []) {
+  const list = Array.isArray(ids) ? [...new Set(ids.filter(Boolean))] : [];
+  if (!list.length) return 0;
+  if (pgEnabled) {
+    await query('DELETE FROM activity WHERE lead_id = ANY($1::uuid[])', [list]);
+    await query('DELETE FROM tasks WHERE lead_id = ANY($1::uuid[])', [list]);
+    const r = await query('DELETE FROM leads WHERE id = ANY($1::uuid[]) RETURNING id', [list]);
+    return r.rowCount;
+  }
+  const set = new Set(list);
+  const leads = await read(LEADS);
+  let removed = 0;
+  for (let i = leads.length - 1; i >= 0; i--) { if (set.has(leads[i].id)) { leads.splice(i, 1); removed += 1; } }
+  await persist(LEADS);
+  const acts = await read('activity');
+  for (let i = acts.length - 1; i >= 0; i--) { if (set.has(acts[i].leadId)) acts.splice(i, 1); }
+  await persist('activity');
+  const tasks = await read('tasks');
+  for (let i = tasks.length - 1; i >= 0; i--) { if (set.has(tasks[i].leadId)) tasks.splice(i, 1); }
+  await persist('tasks');
+  return removed;
+}
+
+// Appointment instants (ms) of bookings within [fromIso, toIso). Used to compute
+// real per-slot availability for the booking form.
+export async function bookingAppointmentsBetween(fromIso, toIso) {
+  if (pgEnabled) {
+    const r = await query(
+      `SELECT appointment_at FROM leads
+       WHERE source = 'booking' AND appointment_at >= $1 AND appointment_at < $2`,
+      [fromIso, toIso],
+    );
+    return r.rows.map((row) => new Date(row.appointment_at).getTime());
+  }
+  const list = await read(LEADS);
+  const from = new Date(fromIso).getTime();
+  const to = new Date(toIso).getTime();
+  return list
+    .filter((l) => l.source === 'booking' && l.appointmentAt)
+    .map((l) => new Date(l.appointmentAt).getTime())
+    .filter((t) => t >= from && t < to);
 }
 
 export async function listLeads(opts = {}) {

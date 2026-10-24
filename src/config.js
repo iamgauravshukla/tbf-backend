@@ -79,4 +79,40 @@ export const config = {
     windowMs: Number(process.env.RATE_WINDOW_MS || 15 * 60 * 1000),
     max: Number(process.env.RATE_MAX || 20),
   },
+
+  // ── Email (booking confirmations) ──
+  // SMTP via the clinic mailbox (e.g. Hostinger). All of host/user/pass/from
+  // must be set for email to send; otherwise confirmations are skipped and the
+  // booking is still saved and visible in the dashboard. SMTP_SECURE=true for
+  // port 465 (implicit TLS); leave false for 587 (STARTTLS).
+  smtp: {
+    host: (process.env.SMTP_HOST || '').trim(),
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: process.env.SMTP_SECURE === 'true',
+    user: (process.env.SMTP_USER || '').trim(),
+    pass: process.env.SMTP_PASS || '',
+    from: (process.env.EMAIL_FROM || process.env.SMTP_USER || '').trim(),
+    // Optional: also send the clinic a copy of each new booking.
+    bookingsInbox: (process.env.BOOKINGS_INBOX || '').trim(),
+  },
+  // Reception / front-desk inbox notified of every new enquiry and booking.
+  receptionEmail: (process.env.RECEPTION_EMAIL || '').trim(),
+  // Where the staff-notification email links to open the record (the dashboard).
+  // Falls back to SITE_URL + /admin/. Set ADMIN_URL in prod if the admin lives
+  // on a different host than SITE_URL.
+  adminUrl: (process.env.ADMIN_URL || '').trim(),
+  // Used to show appointment times to the customer in the clinic's local time.
+  clinicTz: process.env.CLINIC_TZ || 'Asia/Manila',
+
+  // Bookable slots. Appointments run in fixed slots between OPEN and CLOSE
+  // (clinic-local time). SLOT_CAPACITY is how many bookings each slot can take —
+  // set it to your real per-slot capacity (rooms × staff). The booking form
+  // shows the true number of slots left and will not let a full slot be booked.
+  slotCapacity: Math.max(1, Number(process.env.SLOT_CAPACITY || 2)),
+  slotMinutes: Math.max(5, Number(process.env.SLOT_MINUTES || 45)),
+  bookingOpen: (process.env.BOOKING_OPEN || '10:00').trim(),   // 10:00 AM
+  bookingClose: (process.env.BOOKING_CLOSE || '18:00').trim(), // 6:00 PM
+  // Shown in the confirmation email so clients can reach the clinic.
+  clinicName: process.env.CLINIC_NAME || 'The Better Face',
+  clinicPhone: process.env.CLINIC_PHONE || '',
 };

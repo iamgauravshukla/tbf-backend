@@ -69,6 +69,10 @@ export async function ensureSchema() {
       user_agent TEXT
     );
   `);
+  // Booking fields, added to the leads table so a booking is just a lead with a
+  // requested slot. Idempotent — safe on every boot, including upgrades.
+  await query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS age INTEGER;`);
+  await query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS pre_medical TEXT;`);
   await query(`
     CREATE TABLE IF NOT EXISTS activity (
       id UUID PRIMARY KEY,
@@ -117,6 +121,18 @@ export async function ensureSchema() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+  // Uploaded blog images live in the database so they survive redeploys — the
+  // container filesystem on Railway is ephemeral and wiped on every deploy.
+  await query(`
+    CREATE TABLE IF NOT EXISTS uploads (
+      name TEXT PRIMARY KEY,
+      content_type TEXT NOT NULL,
+      bytes BYTEA NOT NULL,
+      size INTEGER NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await query('CREATE INDEX IF NOT EXISTS idx_uploads_created ON uploads(created_at DESC);');
   await query('CREATE INDEX IF NOT EXISTS idx_posts_status ON posts(status, published_at DESC);');
   await query('CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);');
   await query('CREATE INDEX IF NOT EXISTS idx_leads_assigned ON leads(assigned_to);');

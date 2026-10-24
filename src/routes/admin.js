@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth } from '../lib/auth.js';
-import { listLeads, getLead, updateLead, stats, visibleTo, STATUSES } from '../lib/store.js';
+import { listLeads, getLead, updateLead, deleteLeads, stats, visibleTo, STATUSES } from '../lib/store.js';
 import { logActivity, listActivity } from '../lib/activity.js';
 import { listAgents, findById } from '../lib/users.js';
 import { computeAnalytics } from '../lib/analytics.js';
@@ -51,6 +51,19 @@ adminRouter.get('/leads', async (req, res, next) => {
       status, q, from, to, treatment, source, assignedTo, viewer: req.user, limit, offset,
     });
     res.json({ ok: true, total, limit, offset, leads });
+  } catch (err) { next(err); }
+});
+
+// Bulk delete (admin only) — permanently remove spam / test leads and bookings
+// along with their timeline and tasks. Must precede the /leads/:id routes.
+adminRouter.post('/leads/delete', async (req, res, next) => {
+  try {
+    if (req.user.role !== 'admin') return res.status(403).json({ ok: false, error: 'forbidden' });
+    const raw = Array.isArray(req.body?.ids) ? req.body.ids : [];
+    const ids = raw.filter((x) => typeof x === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(x));
+    if (!ids.length) return res.status(400).json({ ok: false, error: 'no_ids' });
+    const removed = await deleteLeads(ids);
+    res.json({ ok: true, removed });
   } catch (err) { next(err); }
 });
 

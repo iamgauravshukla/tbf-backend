@@ -3,6 +3,7 @@ import { config } from '../config.js';
 import { validateLead } from '../lib/validate.js';
 import { createLead, listLeads } from '../lib/store.js';
 import { forwardLead, forwardLeadToCrm } from '../lib/notify.js';
+import { sendStaffNotification } from '../lib/email.js';
 import { logActivity } from '../lib/activity.js';
 
 export const leadsRouter = Router();
@@ -49,8 +50,9 @@ leadsRouter.post('/', async (req, res, next) => {
       userAgent: req.get('user-agent') || '',
     });
     logActivity({ leadId: record.id, type: 'created', message: `Enquiry received via ${record.source}` });
-    forwardLead(record);      // optional webhook (Slack / Zapier)
-    forwardLeadToCrm(record); // mirror to the external CRM intake
+    forwardLead(record);                   // optional webhook (Slack / Zapier)
+    forwardLeadToCrm(record);              // mirror to the external CRM intake
+    sendStaffNotification(record, 'lead'); // alert reception / clinic inbox
 
     // POST → 303 → GET the thank-you page (where the conversion event fires).
     if (wantsJson(req)) return res.status(201).json({ ok: true, id: record.id });
