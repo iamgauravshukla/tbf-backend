@@ -132,7 +132,28 @@ export async function ensureSchema() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+  // First-party, cookieless page-view analytics. One row per page view. No IP,
+  // no user-agent, no cookie: just a client session id (sessionStorage), the
+  // path, the referring host, the first-touch campaign and a coarse device
+  // class. `is_entry` marks a session's landing page.
+  await query(`
+    CREATE TABLE IF NOT EXISTS visits (
+      id UUID PRIMARY KEY,
+      at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      session_id TEXT NOT NULL,
+      path TEXT NOT NULL,
+      ref_host TEXT,
+      source TEXT,
+      medium TEXT,
+      campaign TEXT,
+      content TEXT,
+      device TEXT,
+      is_entry BOOLEAN NOT NULL DEFAULT false
+    );
+  `);
   await query('CREATE INDEX IF NOT EXISTS idx_uploads_created ON uploads(created_at DESC);');
+  await query('CREATE INDEX IF NOT EXISTS idx_visits_at ON visits(at DESC);');
+  await query('CREATE INDEX IF NOT EXISTS idx_visits_session ON visits(session_id);');
   await query('CREATE INDEX IF NOT EXISTS idx_posts_status ON posts(status, published_at DESC);');
   await query('CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);');
   await query('CREATE INDEX IF NOT EXISTS idx_leads_assigned ON leads(assigned_to);');

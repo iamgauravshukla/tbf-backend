@@ -4,6 +4,7 @@ import { listLeads, getLead, updateLead, deleteLeads, stats, visibleTo, STATUSES
 import { logActivity, listActivity } from '../lib/activity.js';
 import { listAgents, findById } from '../lib/users.js';
 import { computeAnalytics } from '../lib/analytics.js';
+import { computeVisitAnalytics } from '../lib/visits.js';
 
 export const adminRouter = Router();
 
@@ -35,6 +36,20 @@ adminRouter.get('/agents', async (req, res, next) => {
 adminRouter.get('/analytics', async (req, res, next) => {
   try {
     const data = await computeAnalytics({ viewer: req.user, from: req.query.from, to: req.query.to });
+    res.json({ ok: true, ...data });
+  } catch (err) { next(err); }
+});
+
+// First-party visitor analytics (page views, sessions, bounce rate, sources,
+// campaigns, devices). Site-wide traffic is a business metric, so it is limited
+// to managers and admins — agents don't see it. Optional ?from&to (last 30 days
+// by default).
+adminRouter.get('/visits', async (req, res, next) => {
+  try {
+    if (req.user.role !== 'admin' && req.user.role !== 'manager') {
+      return res.status(403).json({ ok: false, error: 'forbidden' });
+    }
+    const data = await computeVisitAnalytics({ from: req.query.from, to: req.query.to });
     res.json({ ok: true, ...data });
   } catch (err) { next(err); }
 });

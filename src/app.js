@@ -12,6 +12,7 @@ import { usersRouter } from './routes/users.js';
 import { tasksRouter } from './routes/tasks.js';
 import { postsPublicRouter, blogAdminRouter } from './routes/blog.js';
 import { uploadsRouter, uploadsDir } from './routes/uploads.js';
+import { trackRouter } from './routes/track.js';
 import { getMedia } from './lib/media.js';
 
 export function createApp() {
@@ -58,6 +59,20 @@ export function createApp() {
     }
   });
   app.use('/api/bookings', limiter, bookingsRouter);
+
+  // First-party, cookieless page-view beacon (powers the dashboard Visitors
+  // view). Its own generous limiter — a real visitor never approaches 120 hits a
+  // minute — blocks floods without throttling normal browsing. express.text
+  // parses the sendBeacon text/plain body (a JSON-content fallback is caught by
+  // the global express.json above and arrives already parsed).
+  const trackLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 120,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { ok: false, error: 'too_many_requests' },
+  });
+  app.use('/api/track', trackLimiter, express.text({ type: () => true, limit: '2kb' }), trackRouter);
 
   // Blog: public reads for the website, authenticated writes for the editor.
   // The admin mounts must precede /api/admin so their role gates apply.
